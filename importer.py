@@ -272,21 +272,28 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
 # ---------------------------------------------------------------------------
 
 def fix_image_path(url: str | None, repo_path: Path) -> str | None:
-    """Self-heal wrong local image paths.
+    """Normalize/self-heal site-local image paths. Absolute URLs are untouched.
 
-    Some frontmatter points at `/assets/images/<name>` when the file actually
-    lives under `/assets/device_images/<name>` — broken on the upstream site too.
-    If a site-relative image is missing at its stated path but present under
-    device_images, rewrite it. Absolute URLs are left untouched.
+    Handles two upstream data quirks:
+      * missing leading slash (e.g. `assets/device_images/x.png`) — the frontend
+        needs `/assets/...` to route local images correctly;
+      * wrong subfolder (path points at `/assets/images/x` but the file is under
+        `/assets/device_images/x`, or vice-versa) — broken on the upstream site too.
+    Always returns a leading-slash form pointing at a file that actually exists
+    in the clone when one can be found.
     """
-    if not url or not url.startswith("/assets/"):
+    if not url or url.startswith(("http://", "https://")):
         return url
-    if (repo_path / url.lstrip("/")).exists():
+    rel = url.lstrip("/")
+    if not rel.startswith("assets"):
         return url
-    name = url.rsplit("/", 1)[-1]
-    if (repo_path / "assets" / "device_images" / name).exists():
-        return "/assets/device_images/" + name
-    return url
+    if (repo_path / rel).exists():
+        return "/" + rel                       # exists as-is; just normalize slash
+    name = rel.rsplit("/", 1)[-1]
+    for cand in (f"assets/device_images/{name}", f"assets/images/{name}", f"assets/{name}"):
+        if (repo_path / cand).exists():
+            return "/" + cand
+    return "/" + rel                           # genuinely missing; keep normalized
 
 
 def build_device_record(path: Path, supported: bool) -> dict | None:

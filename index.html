@@ -129,8 +129,22 @@
     border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
   }
   .tpl button.copied { color: var(--ok); border-color: var(--ok); }
-  .notes { font-size: 13px; color: var(--ink); white-space: pre-wrap; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
-  .notes a { color: var(--accent); word-break: break-all; }
+  .notes { font-size: 13px; color: var(--ink); border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+  .notes > :first-child { margin-top: 0; }
+  .notes p { margin: 0 0 10px; }
+  .notes a { color: var(--accent); word-break: break-word; }
+  .notes h1, .notes h2, .notes h3, .notes h4, .notes h5 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+  .notes ul, .notes ol { margin: 0 0 10px; padding-left: 20px; }
+  .notes li { margin: 2px 0; }
+  .notes img { max-width: 100%; height: auto; border-radius: 6px; margin: 6px 0; }
+  .notes code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .notes pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 0 0 10px; }
+  .notes pre code { border: none; padding: 0; background: none; }
+  .notes blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+  .notes table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
+  .notes th, .notes td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; font-size: 12px; }
+  .linkbtn { border: none; background: none; padding: 0; margin: 0; color: var(--accent); cursor: pointer; font: inherit; }
+  .linkbtn:hover { text-decoration: underline; }
   h4.sec { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 18px 0 8px; }
   #status { padding: 40px 20px; color: var(--muted); }
   footer { padding: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
@@ -174,11 +188,41 @@
 <aside id="drawer"><button class="close" aria-label="Close">×</button><div id="drawer-body"></div></aside>
 
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
 const CDN = "https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/";
 const IMG_BASE = "https://templates.blakadder.com";
 const REPO_BASE = "https://github.com/blakadder/templates";   // upstream, for "Edit on GitHub"
 const PM_PLUG = "__pm_plug__";   // synthetic Type value: power-monitoring plugs
+
+// Make sanitized note HTML safe & consistent: external links open in a new tab,
+// relative image paths are routed like device images, images lazy-load.
+if (window.DOMPurify) {
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (node.tagName === "A" && node.getAttribute("href")) {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noopener nofollow");
+    }
+    if (node.tagName === "IMG") {
+      const src = node.getAttribute("src") || "";
+      if (src.startsWith("/") || src.startsWith("assets/")) {
+        node.setAttribute("src", fixImg(src.startsWith("/") ? src : "/" + src));
+      }
+      node.setAttribute("loading", "lazy");
+    }
+  });
+}
+
+// A shareable deep link to a device, e.g. https://…/#dingtian_DT-R002
+function deviceUrl(slug) {
+  return location.origin + location.pathname + location.search + "#" + encodeURIComponent(slug);
+}
+function openDeviceBySlug(slug) {
+  if (!db || !slug) return;
+  const r = all("SELECT id FROM device WHERE slug=?", [slug]);
+  if (r.length) openDevice(r[0].id);
+}
 // The deployed site vendors the /assets images alongside the page (see the CI
 // workflow); local dev does not, so it hotlinks blakadder instead. Detect which.
 const LOCAL_DEV = ["localhost", "127.0.0.1", "", "0.0.0.0"].includes(location.hostname);
@@ -199,14 +243,16 @@ function cap(s) {
   if (s.toLowerCase() === "diy") return "DIY";
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
-// HTML-escape first (safety), then turn bare http(s) URLs into links. Runs on
-// already-escaped text, so it can't be used to inject markup.
-function linkify(s) {
-  return esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => {
-    const tail = (u.match(/[.,;:)\]]+$/) || [""])[0];
-    const url = u.slice(0, u.length - tail.length);
-    return `<a href="${url}" target="_blank" rel="noopener">${url}</a>${tail}`;
-  });
+// Render device notes (kramdown/Markdown) to sanitized HTML. Falls back to
+// escaped plain text if the libraries didn't load.
+function renderMarkdown(md) {
+  if (!md) return "";
+  if (!window.marked || !window.DOMPurify) return esc(md);
+  try {
+    return DOMPurify.sanitize(marked.parse(md, { gfm: true, breaks: true }));
+  } catch (e) {
+    return esc(md);
+  }
 }
 
 // Build LIKE clauses for a free-text query. Each whitespace token must match
@@ -380,6 +426,7 @@ function openDevice(id) {
   document.getElementById("drawer-body").innerHTML = `
     <h2>${esc(d.title)}</h2>
     <p class="d-sub">${esc(d.slug)}${d.supported ? "" : " · <span style='color:var(--warn)'>unsupported</span>"}
+       · <button type="button" id="copy-link" class="linkbtn">Copy link</button>
        · <a href="${IMG_BASE}/${encodeURIComponent(d.slug)}.html" target="_blank" rel="noopener">View on blakadder ↗</a>
        · <a href="${REPO_BASE}/tree/master/_templates/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Edit on GitHub ↗</a></p>
     ${img ? `<img class="d-img" src="${esc(img)}" alt="">` : ""}
@@ -393,7 +440,7 @@ function openDevice(id) {
       </div>
       <code id="tpl-${i}">${esc(t.raw)}</code>
     </div>`).join("") || "<p class='d-sub'>No template string on record.</p>"}
-    ${d.notes ? `<h4 class="sec">Notes</h4><div class="notes">${linkify(d.notes)}</div>` : ""}
+    ${d.notes ? `<h4 class="sec">Notes</h4><div class="notes">${renderMarkdown(d.notes)}</div>` : ""}
   `;
   document.querySelectorAll("[data-copy]").forEach(btn => {
     btn.onclick = () => {
@@ -404,12 +451,21 @@ function openDevice(id) {
       });
     };
   });
+  const shareUrl = deviceUrl(d.slug);
+  const cl = document.getElementById("copy-link");
+  if (cl) cl.onclick = () => navigator.clipboard.writeText(shareUrl).then(() => {
+    cl.textContent = "Link copied ✓";
+    setTimeout(() => { cl.textContent = "Copy link"; }, 1400);
+  });
+  // Reflect the open device in the URL so it can be bookmarked/shared (no history spam).
+  history.replaceState(null, "", "#" + encodeURIComponent(d.slug));
   document.getElementById("overlay").classList.add("open");
   document.getElementById("drawer").classList.add("open");
 }
 function closeDrawer() {
   document.getElementById("overlay").classList.remove("open");
   document.getElementById("drawer").classList.remove("open");
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 }
 
 // wire up
@@ -419,6 +475,10 @@ document.getElementById("results").addEventListener("click", e => {
 });
 document.querySelector("#drawer .close").onclick = closeDrawer;
 document.getElementById("overlay").onclick = closeDrawer;
+window.addEventListener("hashchange", () => {
+  const slug = decodeURIComponent(location.hash.slice(1));
+  if (slug) openDeviceBySlug(slug); else closeDrawer();
+});
 
 const qInput = document.getElementById("q");
 const qClear = document.getElementById("q-clear");
@@ -462,6 +522,8 @@ document.getElementById("clear").onclick = () => {
     } catch (e) { /* private mode */ }
     document.getElementById("status").style.display = "none";
     search();
+    // Open a device if the page was loaded with a #slug deep link.
+    openDeviceBySlug(decodeURIComponent(location.hash.slice(1)));
   } catch (err) {
     document.getElementById("status").textContent = "Failed to load database: " + err.message;
   }

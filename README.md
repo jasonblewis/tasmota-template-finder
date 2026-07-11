@@ -198,6 +198,12 @@ browser** via [sql.js](https://sql.js.org) (SQLite compiled to WebAssembly) — 
 backend, no build step. Faceted filtering (region, category, type, brand + text
 search), and a detail drawer per device with copy-able template strings.
 
+The drawer also renders each device's notes as **Markdown → HTML** (via
+`marked` + `DOMPurify`, since the upstream notes are kramdown), shows chip-family
+and region badges, and offers a **Copy link** button — devices are deep-linkable
+via `#<slug>` (e.g. `…/#sonoff_S55`) so a specific device can be shared or
+bookmarked.
+
 Because there's no server, it hosts anywhere static — including **GitHub Pages
 for free**, the same model as the current blakadder site.
 
