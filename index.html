@@ -138,7 +138,15 @@
   .notes li { margin: 2px 0; }
   .notes img { max-width: 100%; height: auto; border-radius: 6px; margin: 6px 0; }
   .notes code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .notes pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 0 0 10px; }
+  .notes pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 0; }
+  .notes .pre-wrap { position: relative; margin: 0 0 10px; }
+  .notes .pre-wrap .copy-pre {
+    position: absolute; top: 6px; right: 6px; font: 11px/1 inherit;
+    padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); color: var(--ink); cursor: pointer; opacity: .75;
+  }
+  .notes .pre-wrap .copy-pre:hover { opacity: 1; }
+  .notes .pre-wrap .copy-pre.copied { color: var(--ok); border-color: var(--ok); opacity: 1; }
   .notes pre code { border: none; padding: 0; background: none; }
   .notes blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
   .notes table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
@@ -464,6 +472,27 @@ function openDevice(id) {
       });
     };
   });
+  // Add a copy button to each rendered code block in the notes. The button
+  // lives in a wrapper (not inside <pre>) so it stays pinned when wide code
+  // scrolls horizontally.
+  document.querySelectorAll("#drawer-body .notes pre").forEach(pre => {
+    const code = pre.querySelector("code");
+    if (!code) return;
+    const wrap = document.createElement("div");
+    wrap.className = "pre-wrap";
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-pre";
+    btn.textContent = "Copy";
+    btn.onclick = () => navigator.clipboard.writeText(code.textContent.replace(/\n$/, "")).then(() => {
+      btn.textContent = "Copied ✓"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 1400);
+    });
+    wrap.appendChild(btn);
+  });
+
   const shareUrl = deviceUrl(d.slug);
   const cl = document.getElementById("copy-link");
   if (cl) cl.onclick = () => navigator.clipboard.writeText(shareUrl).then(() => {
