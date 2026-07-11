@@ -39,7 +39,15 @@
     font: inherit; padding: 8px 10px; border: 1px solid var(--line);
     border-radius: 8px; background: var(--bg); color: var(--ink); min-width: 0;
   }
-  .filters input[type=search] { flex: 1 1 240px; }
+  .search-wrap { position: relative; flex: 1 1 240px; display: flex; }
+  .search-wrap input[type=search] { flex: 1; width: 100%; padding-right: 30px; }
+  .search-wrap input[type=search]::-webkit-search-cancel-button { display: none; }
+  .search-clear {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    border: none; background: none; cursor: pointer; color: var(--muted);
+    font-size: 20px; line-height: 1; padding: 0 4px; border-radius: 6px;
+  }
+  .search-clear:hover { color: var(--ink); }
   .filters select { flex: 0 1 auto; }
   .filters label.check {
     display: inline-flex; align-items: center; gap: 6px; color: var(--muted);
@@ -135,7 +143,10 @@
   <p>Faceted search over the <a href="https://github.com/blakadder/templates" style="color:var(--accent)">blakadder</a> device templates — filter by region, category, type &amp; brand at once.</p>
   <p class="note">This is a searchable mirror — to add or update information, visit the <a href="https://templates.blakadder.com">upstream blakadder site</a>.</p>
   <div class="filters">
-    <input type="search" id="q" placeholder="Search name, model, notes…" autocomplete="off">
+    <span class="search-wrap">
+      <input type="search" id="q" placeholder="Search name, model, notes…" autocomplete="off">
+      <button type="button" id="q-clear" class="search-clear" aria-label="Clear search" hidden>×</button>
+    </span>
     <select id="region"><option value="">All regions</option></select>
     <select id="category"><option value="">All categories</option></select>
     <select id="type"><option value="">All types</option></select>
@@ -264,7 +275,7 @@ function populateFacets() {
       `<option value="${esc(r.type)}">${esc(r.type)} (${r.n})</option>`);
   }
   for (const r of all(`SELECT b.name FROM brand b JOIN device d ON d.brand_id=b.id
-      GROUP BY b.name HAVING COUNT(*) > 1 ORDER BY b.name`)) {
+      GROUP BY b.name HAVING COUNT(*) > 1 ORDER BY b.name COLLATE NOCASE`)) {
     document.getElementById("brands").insertAdjacentHTML("beforeend",
       `<option value="${esc(r.name)}">`);
   }
@@ -345,7 +356,7 @@ function openDevice(id) {
     LEFT JOIN category cat ON cat.id=d.category_id WHERE d.id=?`, [id])[0];
   if (!d) return;
   const tpls = all(`SELECT chip, raw, json_valid, name, base FROM device_template WHERE device_id=? ORDER BY chip`, [id]);
-  const regions = all(`SELECT dr.region, r.label FROM device_region dr LEFT JOIN region r ON r.code=dr.region WHERE device_id=?`, [id]);
+  const regions = all(`SELECT dr.region, r.label FROM device_region dr LEFT JOIN region r ON r.code=dr.region WHERE device_id=? ORDER BY r.label COLLATE NOCASE`, [id]);
   const sockets = all(`SELECT socket FROM device_socket WHERE device_id=?`, [id]).map(x => x.socket);
   const links = all(`SELECT url FROM device_link WHERE device_id=?`, [id]).map(x => x.url);
   const img = fixImg(d.image_url);
@@ -356,7 +367,8 @@ function openDevice(id) {
   if (d.category) kv.push(["Category", esc(cap(d.category))]);
   if (d.type) kv.push(["Type", esc(d.type)]);
   if (d.power_monitoring) kv.push(["Power", "⚡ power/energy monitoring"]);
-  if (regions.length) kv.push(["Region", regions.map(r => esc(r.label || r.region)).join(", ")]);
+  if (regions.length) kv.push(["Region",
+    regions.map(r => `<span class="chip region" title="${esc(r.label || r.region)}">${esc(r.region)}</span>`).join(" ")]);
   if (sockets.length) kv.push(["Socket", sockets.map(esc).join(", ")]);
   if (d.flash_method) kv.push(["Flashing", esc(d.flash_method)]);
   if (d.chip) kv.push(["Chip", esc(d.chip)]);
@@ -407,9 +419,22 @@ document.getElementById("results").addEventListener("click", e => {
 });
 document.querySelector("#drawer .close").onclick = closeDrawer;
 document.getElementById("overlay").onclick = closeDrawer;
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+const qInput = document.getElementById("q");
+const qClear = document.getElementById("q-clear");
+function toggleClear() { qClear.hidden = !qInput.value; }
+function clearSearch() { qInput.value = ""; toggleClear(); search(); qInput.focus(); }
+qClear.addEventListener("click", clearSearch);
+
+// Escape: close the drawer if open, else clear the search bar.
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("drawer").classList.contains("open")) closeDrawer();
+  else if (qInput.value) clearSearch();
+});
+
 let t;
-document.getElementById("q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(search, 160); });
+qInput.addEventListener("input", () => { toggleClear(); clearTimeout(t); t = setTimeout(search, 160); });
 ["region","category","type","brand","supported","sort"].forEach(id =>
   document.getElementById(id).addEventListener("input", search));
 document.getElementById("clear").onclick = () => {
@@ -417,6 +442,7 @@ document.getElementById("clear").onclick = () => {
   ["region","category","type"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("sort").value = "name";
   document.getElementById("supported").checked = true;
+  toggleClear();
   search();
 };
 
