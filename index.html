@@ -79,6 +79,9 @@
   .chip.region { background: color-mix(in srgb, var(--accent) 18%, transparent); }
   .chip.unsup { color: var(--warn); }
   .chip.pm { background: color-mix(in srgb, #d9a30a 22%, transparent); color: var(--ink); }
+  .chip.fam { background: color-mix(in srgb, #d9534f 20%, transparent); color: var(--ink); font-weight: 600; }
+  .fambadges { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+  .fambadges .chip.fam { font-size: 12px; padding: 3px 10px; }
   /* detail drawer */
   #overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40;
@@ -179,6 +182,12 @@ function fixImg(url) {
   return url;   // absolute URLs (githubusercontent, manufacturer sites) unchanged
 }
 function esc(s) { return (s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// Display helper: Title-case a lowercase category name ("diy" -> "DIY", "plug" -> "Plug").
+function cap(s) {
+  if (!s) return s;
+  if (s.toLowerCase() === "diy") return "DIY";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 // HTML-escape first (safety), then turn bare http(s) URLs into links. Runs on
 // already-escaped text, so it can't be used to inject markup.
 function linkify(s) {
@@ -205,6 +214,23 @@ function likeClauses(text) {
   return { where, params };
 }
 
+// Map a stored chip code (esp8266, esp8266-v9, esp32-c3, …) to a display family
+// (ESP8266 / ESP32 / ESP32-C3 …) — the equivalent of blakadder's chip button,
+// but we show every family a device supports, not just one.
+function chipFamily(chip) {
+  if (!chip) return null;
+  if (chip.startsWith("esp8266")) return "ESP8266";
+  const m = chip.match(/^esp32-(c2|c3|c6|s2|s3)/);
+  if (m) return "ESP32-" + m[1].toUpperCase();
+  if (chip.startsWith("esp32")) return "ESP32";
+  return "ESP8266";   // alt/unknown 8-bit variants
+}
+function chipBadges(chips) {
+  const fams = [];
+  for (const c of chips) { const f = chipFamily(c); if (f && !fams.includes(f)) fams.push(f); }
+  return fams.map(f => `<span class="chip fam">${esc(f)}</span>`).join("");
+}
+
 function all(sql, params = []) {
   const st = db.prepare(sql);
   st.bind(params);
@@ -223,14 +249,14 @@ function populateFacets() {
   for (const r of all(`SELECT cat.name, COUNT(*) n FROM device d
       JOIN category cat ON cat.id=d.category_id GROUP BY cat.name ORDER BY cat.name COLLATE NOCASE`)) {
     document.getElementById("category").insertAdjacentHTML("beforeend",
-      `<option value="${esc(r.name)}">${esc(r.name)} (${r.n})</option>`);
+      `<option value="${esc(r.name)}">${esc(cap(r.name))} (${r.n})</option>`);
   }
   // Special synthetic option: power-monitoring plugs (a detected capability,
   // not a real `type` value). Handled specially in search().
   const pmCount = all(`SELECT COUNT(*) n FROM device WHERE power_monitoring=1`)[0].n;
   if (pmCount) {
     document.getElementById("type").insertAdjacentHTML("beforeend",
-      `<option value="${PM_PLUG}">⚡ Power monitoring plugs (${pmCount})</option>`);
+      `<option value="${PM_PLUG}">Power monitoring plugs (${pmCount})</option>`);
   }
   for (const r of all(`SELECT type, COUNT(*) n FROM device WHERE type IS NOT NULL
       GROUP BY type ORDER BY type COLLATE NOCASE`)) {
@@ -278,6 +304,7 @@ function search() {
            d.last_updated, d.power_monitoring,
            b.name AS brand, cat.name AS category,
            (SELECT group_concat(region,' ') FROM device_region WHERE device_id=d.id) AS regions,
+           (SELECT group_concat(DISTINCT chip) FROM device_template WHERE device_id=d.id) AS chips,
            (SELECT COUNT(*) FROM device_template WHERE device_id=d.id) AS n_tpl
     FROM device d
     LEFT JOIN brand b ON b.id=d.brand_id
@@ -301,7 +328,8 @@ function search() {
       <div class="sub">${esc(r.brand || "—")}${r.model ? " · " + esc(r.model) : ""}</div>
       ${r.last_updated ? `<div class="sub upd">updated ${esc(r.last_updated)}</div>` : ""}
       <div class="chips">
-        ${r.category ? `<span class="chip">${esc(r.category)}</span>` : ""}
+        ${chipBadges((r.chips || "").split(","))}
+        ${r.category ? `<span class="chip">${esc(cap(r.category))}</span>` : ""}
         ${r.power_monitoring ? `<span class="chip pm">⚡ power monitoring</span>` : ""}
         ${regions}
         ${r.n_tpl > 1 ? `<span class="chip">${r.n_tpl} templates</span>` : ""}
@@ -325,7 +353,7 @@ function openDevice(id) {
   const kv = [];
   if (d.brand) kv.push(["Brand", esc(d.brand)]);
   if (d.model) kv.push(["Model", esc(d.model)]);
-  if (d.category) kv.push(["Category", esc(d.category)]);
+  if (d.category) kv.push(["Category", esc(cap(d.category))]);
   if (d.type) kv.push(["Type", esc(d.type)]);
   if (d.power_monitoring) kv.push(["Power", "⚡ power/energy monitoring"]);
   if (regions.length) kv.push(["Region", regions.map(r => esc(r.label || r.region)).join(", ")]);
@@ -343,6 +371,7 @@ function openDevice(id) {
        · <a href="${IMG_BASE}/${encodeURIComponent(d.slug)}.html" target="_blank" rel="noopener">View on blakadder ↗</a>
        · <a href="${REPO_BASE}/tree/master/_templates/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Edit on GitHub ↗</a></p>
     ${img ? `<img class="d-img" src="${esc(img)}" alt="">` : ""}
+    ${tpls.length ? `<div class="fambadges">${chipBadges(tpls.map(t => t.chip))}</div>` : ""}
     <dl class="kv">${kv.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
     <h4 class="sec">Tasmota templates (${tpls.length})</h4>
     ${tpls.map((t,i) => `<div class="tpl">
@@ -394,7 +423,9 @@ document.getElementById("clear").onclick = () => {
 (async () => {
   try {
     const SQL = await initSqlJs({ locateFile: f => CDN + f });
-    const buf = await (await fetch("tasmota.db")).arrayBuffer();
+    // `no-cache` = always revalidate with the server (cheap 304 if unchanged),
+    // so a rebuilt DB is never served stale against a newer index.html.
+    const buf = await (await fetch("tasmota.db", { cache: "no-cache" })).arrayBuffer();
     db = new SQL.Database(new Uint8Array(buf));
     populateFacets();
     // Restore the region from a previous visit, if it's still a valid option.

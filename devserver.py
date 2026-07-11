@@ -48,6 +48,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass  # keep the console quiet; the watcher prints reloads
 
+    def end_headers(self):
+        # Never let the browser cache anything in dev — otherwise a rebuilt
+        # tasmota.db can be served stale against a newer index.html.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_GET(self):
         if self.path.split("?")[0] == "/__reload":
             return self._serve_reload_stream()
@@ -72,14 +78,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
     def _serve_reload_stream(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-store")
         self.send_header("Connection", "keep-alive")
         self.end_headers()
         q: queue.Queue = queue.Queue()

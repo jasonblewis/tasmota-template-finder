@@ -303,7 +303,9 @@ def build_device_record(path: Path, supported: bool) -> dict | None:
     templates = []
     for key, val in fm.items():
         if key.startswith("template") and isinstance(val, str) and val.strip():
-            chip = CHIP_BY_KEY.get(key, key.replace("template", "esp-") or "esp8266")
+            # Some files spell the alt keys with a hyphen (template-alt) instead
+            # of an underscore (template_alt); normalize before lookup.
+            chip = CHIP_BY_KEY.get(key.replace("-", "_"), "esp8266")
             raw = val.strip()
             json_valid, name, base, gpio_json = safe_template_json(raw)
             templates.append({

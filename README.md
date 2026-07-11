@@ -150,7 +150,10 @@ Normalized so you get faceted queries the current site can't do:
 - `device_socket` — bulb socket sizes (E27, GU10, B22…), split out of the
   overloaded `standard` field so they don't pollute the region facet
 - `device_template` — **one row per chip variant** (esp8266, esp8266-v9, esp32,
-  esp32-c3…), keeping the raw template string plus parsed `NAME`/`BASE`/`GPIO`
+  esp32-c3…), keeping the raw template string plus parsed `NAME`/`BASE`/`GPIO`.
+  The frontend derives **chip-family badges** (ESP8266 / ESP32 / ESP32-C3 …) from
+  these — like blakadder's chip button, but showing *every* family a device
+  supports, not just one
 - `device_link` — extra product links
 - `device_fts` — FTS5 full-text index over title/model/type/notes
 
