@@ -78,6 +78,7 @@
   }
   .chip.region { background: color-mix(in srgb, var(--accent) 18%, transparent); }
   .chip.unsup { color: var(--warn); }
+  .chip.pm { background: color-mix(in srgb, #d9a30a 22%, transparent); color: var(--ink); }
   /* detail drawer */
   #overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40;
@@ -163,6 +164,7 @@
 const CDN = "https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/";
 const IMG_BASE = "https://templates.blakadder.com";
 const REPO_BASE = "https://github.com/blakadder/templates";   // upstream, for "Edit on GitHub"
+const PM_PLUG = "__pm_plug__";   // synthetic Type value: power-monitoring plugs
 // The deployed site vendors the /assets images alongside the page (see the CI
 // workflow); local dev does not, so it hotlinks blakadder instead. Detect which.
 const LOCAL_DEV = ["localhost", "127.0.0.1", "", "0.0.0.0"].includes(location.hostname);
@@ -223,6 +225,13 @@ function populateFacets() {
     document.getElementById("category").insertAdjacentHTML("beforeend",
       `<option value="${esc(r.name)}">${esc(r.name)} (${r.n})</option>`);
   }
+  // Special synthetic option: power-monitoring plugs (a detected capability,
+  // not a real `type` value). Handled specially in search().
+  const pmCount = all(`SELECT COUNT(*) n FROM device WHERE power_monitoring=1`)[0].n;
+  if (pmCount) {
+    document.getElementById("type").insertAdjacentHTML("beforeend",
+      `<option value="${PM_PLUG}">⚡ Power monitoring plugs (${pmCount})</option>`);
+  }
   for (const r of all(`SELECT type, COUNT(*) n FROM device WHERE type IS NOT NULL
       GROUP BY type ORDER BY type COLLATE NOCASE`)) {
     document.getElementById("type").insertAdjacentHTML("beforeend",
@@ -251,7 +260,8 @@ function search() {
   where.push(...lk.where); params.push(...lk.params);
   if (region) { where.push(`d.id IN (SELECT device_id FROM device_region WHERE region=?)`); params.push(region); }
   if (category) { where.push(`cat.name = ?`); params.push(category); }
-  if (type) { where.push(`d.type = ?`); params.push(type); }
+  if (type === PM_PLUG) { where.push(`d.power_monitoring = 1`); }
+  else if (type) { where.push(`d.type = ?`); params.push(type); }
   if (brand) { where.push(`b.name = ? COLLATE NOCASE`); params.push(brand); }
   if (supported) { where.push(`d.supported = 1`); }
   const clause = where.length ? "WHERE " + where.join(" AND ") : "";
@@ -265,7 +275,7 @@ function search() {
     : "d.title COLLATE NOCASE";
   const rows = all(`
     SELECT d.id, d.slug, d.title, d.model, d.type, d.image_url, d.supported,
-           d.last_updated,
+           d.last_updated, d.power_monitoring,
            b.name AS brand, cat.name AS category,
            (SELECT group_concat(region,' ') FROM device_region WHERE device_id=d.id) AS regions,
            (SELECT COUNT(*) FROM device_template WHERE device_id=d.id) AS n_tpl
@@ -292,6 +302,7 @@ function search() {
       ${r.last_updated ? `<div class="sub upd">updated ${esc(r.last_updated)}</div>` : ""}
       <div class="chips">
         ${r.category ? `<span class="chip">${esc(r.category)}</span>` : ""}
+        ${r.power_monitoring ? `<span class="chip pm">⚡ power monitoring</span>` : ""}
         ${regions}
         ${r.n_tpl > 1 ? `<span class="chip">${r.n_tpl} templates</span>` : ""}
         ${!r.supported ? `<span class="chip unsup">unsupported</span>` : ""}
@@ -316,6 +327,7 @@ function openDevice(id) {
   if (d.model) kv.push(["Model", esc(d.model)]);
   if (d.category) kv.push(["Category", esc(d.category)]);
   if (d.type) kv.push(["Type", esc(d.type)]);
+  if (d.power_monitoring) kv.push(["Power", "⚡ power/energy monitoring"]);
   if (regions.length) kv.push(["Region", regions.map(r => esc(r.label || r.region)).join(", ")]);
   if (sockets.length) kv.push(["Socket", sockets.map(esc).join(", ")]);
   if (d.flash_method) kv.push(["Flashing", esc(d.flash_method)]);

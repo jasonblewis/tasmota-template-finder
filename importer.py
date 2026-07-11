@@ -157,6 +157,29 @@ def split_standard(raw) -> tuple[list[str], list[str]]:
     return regions, sockets
 
 
+# Heuristic detection of "power monitoring plugs": a plug whose details mention
+# power/energy monitoring or a known energy-monitor chip. Best-effort keyword
+# match (the source data has no capability field) — recall is limited to what
+# each device's notes/title/type actually say.
+PM_KEYWORDS = (
+    "power monitoring", "energy monitoring", "power/energy monitoring",
+    "power monitor", "energy monitor", "power metering", "energy metering",
+    "power meter", "energy meter", "power measurement", "energy measurement",
+    "measures power", "power consumption", "energy consumption",
+    # known Tasmota energy-monitor chips, often named in the notes
+    "hlw8012", "hjl-01", "bl0937", "bl0940", "bl0942", "bl0910",
+    "cse7766", "cse7759", "ade7953", "bl6523",
+)
+
+
+def detect_power_monitoring(title, dtype, notes, category) -> int:
+    is_plug = category == "plug" or "plug" in (dtype or "").lower()
+    if not is_plug:
+        return 0
+    blob = " ".join(str(x or "") for x in (title, dtype, notes)).lower()
+    return 1 if any(k in blob for k in PM_KEYWORDS) else 0
+
+
 def norm_category(raw) -> str | None:
     """Case-fold + light synonym-map the coarse category."""
     if not raw:
@@ -291,13 +314,17 @@ def build_device_record(path: Path, supported: bool) -> dict | None:
     links = [fm.get(k) for k in ("link2", "link3", "link4", "link5")]
     links = [str(u).strip() for u in links if u and str(u).strip()]
 
+    category = norm_category(fm.get("category"))
+    dtype = (str(fm["type"]).strip() if fm.get("type") else None)
+
     return {
         "slug": slug,
         "title": title,
         "brand": derive_brand(title),
         "model": (str(fm["model"]).strip() if fm.get("model") else None),
-        "category": norm_category(fm.get("category")),
-        "type": (str(fm["type"]).strip() if fm.get("type") else None),
+        "category": category,
+        "type": dtype,
+        "power_monitoring": detect_power_monitoring(title, dtype, body, category),
         "image_url": (str(fm["image"]).strip() if fm.get("image") else None),
         "product_link": (str(fm["link"]).strip() if fm.get("link") else None),
         "manuf_link": (str(fm["mlink"]).strip() if fm.get("mlink") else None),
@@ -356,6 +383,7 @@ CREATE TABLE device (
     flash_method  TEXT,
     chip          TEXT,
     supported     INTEGER NOT NULL DEFAULT 1,
+    power_monitoring INTEGER NOT NULL DEFAULT 0,  -- heuristically detected plug w/ power/energy monitoring
     date_added    TEXT,
     last_updated  TEXT,                        -- git last-commit date of the file
     notes         TEXT
@@ -435,12 +463,13 @@ def load_into_db(db_path: Path, records: list[dict]) -> dict:
             """INSERT INTO device
                (slug, title, brand_id, model, category_id, type, image_url,
                 product_link, manuf_link, flash_method, chip, supported,
-                date_added, last_updated, notes)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                power_monitoring, date_added, last_updated, notes)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (r["slug"], r["title"], brand_id(r["brand"]), r["model"],
              category_id(r["category"]), r["type"], r["image_url"],
              r["product_link"], r["manuf_link"], r["flash_method"], r["chip"],
-             r["supported"], r["date_added"], r.get("last_updated"), r["notes"]),
+             r["supported"], r.get("power_monitoring", 0), r["date_added"],
+             r.get("last_updated"), r["notes"]),
         )
         dev_id = cur.lastrowid
         # FTS row keyed to device id

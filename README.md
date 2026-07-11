@@ -175,6 +175,13 @@ WHERE dr.region = 'US' AND c.name = 'plug' AND d.supported = 1;
 - **Multiple templates per device**, one per ESP chip family — hence the
   `device_template` child table rather than a single column.
 - ~7 template strings aren't valid JSON; they're stored raw with `json_valid=0`.
+- **"Power monitoring plug" is heuristic.** The source has no capability field, so
+  a device is flagged (`device.power_monitoring`) when it's a plug *and* its
+  title/type/notes mention power/energy monitoring or a known energy-monitor chip
+  (HLW8012, BL0937, CSE7766, ADE7953…). Detection is only as good as what each
+  entry's text says, so it under-counts. Tune the `PM_KEYWORDS` list in
+  `importer.py`. The frontend exposes it as a "⚡ Power monitoring plugs" option in
+  the Type filter.
 
 **Region exclusion policy:** devices associated with any region code in
 `EXCLUDE_REGIONS` in `importer.py` are dropped at import time and never converted.
