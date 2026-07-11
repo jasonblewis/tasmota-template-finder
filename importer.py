@@ -248,6 +248,24 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
 # Device record
 # ---------------------------------------------------------------------------
 
+def fix_image_path(url: str | None, repo_path: Path) -> str | None:
+    """Self-heal wrong local image paths.
+
+    Some frontmatter points at `/assets/images/<name>` when the file actually
+    lives under `/assets/device_images/<name>` — broken on the upstream site too.
+    If a site-relative image is missing at its stated path but present under
+    device_images, rewrite it. Absolute URLs are left untouched.
+    """
+    if not url or not url.startswith("/assets/"):
+        return url
+    if (repo_path / url.lstrip("/")).exists():
+        return url
+    name = url.rsplit("/", 1)[-1]
+    if (repo_path / "assets" / "device_images" / name).exists():
+        return "/assets/device_images/" + name
+    return url
+
+
 def build_device_record(path: Path, supported: bool) -> dict | None:
     """Parse one device file into a normalized record dict, or None on error."""
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -559,6 +577,7 @@ def collect_records(repo_path: Path, include_unsupported: bool) -> list[dict]:
                 continue
             rel = path.relative_to(repo_path).as_posix()
             rec["last_updated"] = git_dates.get(rel) or rec.get("date_added")
+            rec["image_url"] = fix_image_path(rec["image_url"], repo_path)
             records.append(rec)
     if errors:
         print(f"({errors} files skipped due to parse errors / no frontmatter)")

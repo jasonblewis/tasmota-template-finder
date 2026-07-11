@@ -30,6 +30,8 @@
   }
   header h1 { margin: 0 0 2px; font-size: 20px; letter-spacing: -.01em; }
   header p { margin: 0; color: var(--muted); font-size: 13px; }
+  header p.note { margin-top: 4px; }
+  header p.note a { color: var(--accent); }
   .filters {
     display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center;
   }
@@ -127,6 +129,7 @@
 <header>
   <h1>Tasmota Template Finder</h1>
   <p>Faceted search over the <a href="https://github.com/blakadder/templates" style="color:var(--accent)">blakadder</a> device templates — filter by region, category, type &amp; brand at once.</p>
+  <p class="note">This is a searchable mirror — to add or update information, visit the <a href="https://templates.blakadder.com">upstream blakadder site</a>.</p>
   <div class="filters">
     <input type="search" id="q" placeholder="Search name, model, notes…" autocomplete="off">
     <select id="region"><option value="">All regions</option></select>
@@ -159,6 +162,7 @@
 <script>
 const CDN = "https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/";
 const IMG_BASE = "https://templates.blakadder.com";
+const REPO_BASE = "https://github.com/blakadder/templates";   // upstream, for "Edit on GitHub"
 // The deployed site vendors the /assets images alongside the page (see the CI
 // workflow); local dev does not, so it hotlinks blakadder instead. Detect which.
 const LOCAL_DEV = ["localhost", "127.0.0.1", "", "0.0.0.0"].includes(location.hostname);
@@ -324,7 +328,8 @@ function openDevice(id) {
   document.getElementById("drawer-body").innerHTML = `
     <h2>${esc(d.title)}</h2>
     <p class="d-sub">${esc(d.slug)}${d.supported ? "" : " · <span style='color:var(--warn)'>unsupported</span>"}
-       · <a href="${IMG_BASE}/${encodeURIComponent(d.slug)}.html" target="_blank" rel="noopener">View on blakadder ↗</a></p>
+       · <a href="${IMG_BASE}/${encodeURIComponent(d.slug)}.html" target="_blank" rel="noopener">View on blakadder ↗</a>
+       · <a href="${REPO_BASE}/tree/master/_templates/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Edit on GitHub ↗</a></p>
     ${img ? `<img class="d-img" src="${esc(img)}" alt="">` : ""}
     <dl class="kv">${kv.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
     <h4 class="sec">Tasmota templates (${tpls.length})</h4>
