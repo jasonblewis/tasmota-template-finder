@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tasmota Template Finder</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%8C%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f6f7f9; --panel: #ffffff; --ink: #1a1d21; --muted: #626a72;
@@ -401,7 +402,7 @@ function search() {
     const regions = (r.regions || "").split(" ").filter(Boolean)
       .map(x => `<span class="chip region">${esc(x)}</span>`).join("");
     return `<div class="card" data-id="${r.id}">
-      <div class="thumb ${img ? "" : "empty"}">${img ? `<img loading="lazy" src="${esc(img)}" alt="">` : "no image"}</div>
+      <div class="thumb ${img ? "" : "empty"}">${img ? `<img loading="lazy" src="${esc(img)}" alt="" onerror="this.parentNode.classList.add('empty');this.parentNode.textContent='no image'">` : "no image"}</div>
       <h3>${esc(r.title)}</h3>
       <div class="sub">${esc(r.brand || "—")}${r.model ? " · " + esc(r.model) : ""}</div>
       ${r.last_updated ? `<div class="sub upd">updated ${esc(r.last_updated)}</div>` : ""}
@@ -450,7 +451,7 @@ function openDevice(id) {
        · <button type="button" id="copy-link" class="linkbtn">Copy link</button>
        · <a href="${IMG_BASE}/${encodeURIComponent(d.slug)}.html" target="_blank" rel="noopener">View on blakadder ↗</a>
        · <a href="${REPO_BASE}/tree/master/_templates/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Edit on GitHub ↗</a></p>
-    ${img ? `<img class="d-img" src="${esc(img)}" alt="">` : ""}
+    ${img ? `<img class="d-img" src="${esc(img)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('p'),{className:'d-sub',textContent:'(image unavailable)'}))">` : ""}
     ${tpls.length ? `<div class="fambadges">${chipBadges(tpls.map(t => t.chip))}</div>` : ""}
     <dl class="kv">${kv.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
     <h4 class="sec">Tasmota templates (${tpls.length})</h4>
