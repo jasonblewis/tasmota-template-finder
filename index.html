@@ -235,6 +235,8 @@ function search() {
   const type = document.getElementById("type").value;
   const brand = document.getElementById("brand").value.trim();
   const supported = document.getElementById("supported").checked;
+  // Remember the chosen region so it defaults on the next visit.
+  try { localStorage.setItem("ttf.region", region); } catch (e) { /* private mode */ }
 
   const where = [], params = [];
   const lk = likeClauses(q);
@@ -374,6 +376,12 @@ document.getElementById("clear").onclick = () => {
     const buf = await (await fetch("tasmota.db")).arrayBuffer();
     db = new SQL.Database(new Uint8Array(buf));
     populateFacets();
+    // Restore the region from a previous visit, if it's still a valid option.
+    try {
+      const saved = localStorage.getItem("ttf.region");
+      const sel = document.getElementById("region");
+      if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+    } catch (e) { /* private mode */ }
     document.getElementById("status").style.display = "none";
     search();
   } catch (err) {
