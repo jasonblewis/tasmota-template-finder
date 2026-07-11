@@ -244,13 +244,25 @@ function cap(s) {
   if (s.toLowerCase() === "diy") return "DIY";
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+// The notes are authored for Jekyll, so they contain Liquid tags Markdown
+// doesn't understand. Convert {% highlight lang %}…{% endhighlight %} into a
+// fenced code block, and drop {% raw %}/{% endraw %} markers (their inner text
+// is literal — often Home Assistant Jinja — and belongs inside that code block).
+function stripLiquid(md) {
+  return md
+    .replace(/^[ \t]*\{%-?\s*highlight\s+(\w+)\s*-?%\}[ \t]*$/gm, "```$1")
+    .replace(/^[ \t]*\{%-?\s*highlight\s*-?%\}[ \t]*$/gm, "```")
+    .replace(/^[ \t]*\{%-?\s*endhighlight\s*-?%\}[ \t]*$/gm, "```")
+    .replace(/[ \t]*\{%-?\s*(?:end)?raw\s*-?%\}[ \t]*\n?/g, "");
+}
+
 // Render device notes (kramdown/Markdown) to sanitized HTML. Falls back to
 // escaped plain text if the libraries didn't load.
 function renderMarkdown(md) {
   if (!md) return "";
   if (!window.marked || !window.DOMPurify) return esc(md);
   try {
-    return DOMPurify.sanitize(marked.parse(md, { gfm: true, breaks: true }));
+    return DOMPurify.sanitize(marked.parse(stripLiquid(md), { gfm: true, breaks: true }));
   } catch (e) {
     return esc(md);
   }
