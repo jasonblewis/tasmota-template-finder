@@ -1,7 +1,6 @@
 # Tasmota Template Finder
 
-> I was having trouble searching the [blakadder](https://templates.blakadder.com)
-> site, so I vibe coded up a searchable page.
+I was having trouble searching the [blakadder](https://templates.blakadder.com) site, so I vibe coded up a searchable page. See it at (https://jasonblewis.github.io/tasmota-template-finder/)
 
 Import the [blakadder Tasmota templates](https://github.com/blakadder/templates)
 into a normalized SQLite database you can query and host as a searchable site.
