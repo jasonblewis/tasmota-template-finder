@@ -111,6 +111,7 @@
   #drawer h2 { margin: 0 30px 4px 0; font-size: 20px; }
   #drawer .d-sub { color: var(--muted); margin: 0 0 14px; font-size: 13px; }
   #drawer .d-img { max-width: 180px; max-height: 140px; margin-bottom: 14px; }
+  .noimg a { color: var(--accent); }
   .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: 13px; margin-bottom: 16px; }
   .kv dt { color: var(--muted); }
   .kv dd { margin: 0; }
@@ -429,6 +430,22 @@ function openDevice(id) {
   const links = all(`SELECT url FROM device_link WHERE device_id=?`, [id]).map(x => x.url);
   const img = fixImg(d.image_url);
 
+  // Shown when a device has no image (or its image fails to load): find one and
+  // contribute it upstream (a pre-filled blakadder issue you can drag an image into).
+  const terms = [d.title];
+  if (d.model && !(d.title || "").toLowerCase().includes(d.model.toLowerCase())) terms.push(d.model);
+  const q = encodeURIComponent(terms.filter(Boolean).join(" ").trim() || d.slug);
+  const gImages = `https://www.google.com/search?tbm=isch&q=${q}`;
+  const issueUrl = `${REPO_BASE}/issues/new`
+    + `?title=${encodeURIComponent("Add device image: " + (d.title || d.slug))}`
+    + `&body=${encodeURIComponent(
+        `**${d.title || d.slug}** (\`${d.slug}\`) has no image.\n\n`
+        + `Page: https://templates.blakadder.com/${d.slug}.html\n\n`
+        + `Drag an image into this issue to contribute one. Thanks!`)}`;
+  const noImgHtml = `No image on record ·
+    <a href="${gImages}" target="_blank" rel="noopener">Search Google Images ↗</a> ·
+    <a href="${issueUrl}" target="_blank" rel="noopener">Add one upstream ↗</a>`;
+
   const kv = [];
   if (d.brand) kv.push(["Brand", esc(d.brand)]);
   if (d.model) kv.push(["Model", esc(d.model)]);
@@ -451,7 +468,8 @@ function openDevice(id) {
        · <button type="button" id="copy-link" class="linkbtn">Copy link</button>
        · <a href="${IMG_BASE}/${encodeURIComponent(d.slug)}.html" target="_blank" rel="noopener">View on blakadder ↗</a>
        · <a href="${REPO_BASE}/tree/master/_templates/${encodeURIComponent(d.slug)}" target="_blank" rel="noopener">Edit on GitHub ↗</a></p>
-    ${img ? `<img class="d-img" src="${esc(img)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('p'),{className:'d-sub',textContent:'(image unavailable)'}))">` : ""}
+    ${img ? `<img class="d-img" src="${esc(img)}" alt="" onerror="this.remove();document.getElementById('d-noimg').hidden=false">` : ""}
+    <div id="d-noimg" class="noimg d-sub"${img ? " hidden" : ""}>${noImgHtml}</div>
     ${tpls.length ? `<div class="fambadges">${chipBadges(tpls.map(t => t.chip))}</div>` : ""}
     <dl class="kv">${kv.map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>
     <h4 class="sec">Tasmota templates (${tpls.length})</h4>
