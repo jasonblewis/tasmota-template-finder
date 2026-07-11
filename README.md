@@ -223,9 +223,14 @@ committed (it's in `.gitignore`).
 - **Text search uses `LIKE`, not the `device_fts` table** — the stock sql.js
   WASM build omits the FTS5 module. Over ~2,870 in-memory rows a LIKE scan is
   instant. The `device_fts` table remains in the DB for the server path below.
-- Site-relative image paths (`/assets/...`) are rewritten to
-  `templates.blakadder.com` so they resolve when hosted elsewhere (hot-linked,
-  zero image storage).
+- **Images**: the ~2,160 site-relative (`/assets/...`) device images are
+  **vendored into the deployed site** at build time (the workflow copies them
+  from the upstream clone into `_site`), so the published page is self-contained
+  and doesn't lean on blakadder's bandwidth. **Local dev hotlinks blakadder**
+  instead (no image files needed) — the frontend picks the mode by hostname
+  (`localhost` → hotlink, anything else → local). Images already hosted on
+  `githubusercontent`/manufacturer sites stay hotlinked in both modes. The
+  vendored images are built fresh each deploy and never committed to git.
 
 ## Alternative: server-hosted (Datasette)
 

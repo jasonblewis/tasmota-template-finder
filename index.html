@@ -158,15 +158,19 @@
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
 <script>
 const CDN = "https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/";
-// blakadder stores some images as site-relative /assets/... paths — rewrite
-// those to their live host so they resolve when we host this page elsewhere.
 const IMG_BASE = "https://templates.blakadder.com";
-let db = null;
+// The deployed site vendors the /assets images alongside the page (see the CI
+// workflow); local dev does not, so it hotlinks blakadder instead. Detect which.
+const LOCAL_DEV = ["localhost", "127.0.0.1", "", "0.0.0.0"].includes(location.hostname);
 
 function fixImg(url) {
   if (!url) return null;
-  if (url.startsWith("/")) return IMG_BASE + url;
-  return url;
+  if (url.startsWith("/")) {
+    // site-relative /assets path: local dev hotlinks blakadder; the deployed
+    // site resolves it relative to the page (images are copied in at build time).
+    return LOCAL_DEV ? IMG_BASE + url : url.replace(/^\//, "");
+  }
+  return url;   // absolute URLs (githubusercontent, manufacturer sites) unchanged
 }
 function esc(s) { return (s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 // HTML-escape first (safety), then turn bare http(s) URLs into links. Runs on

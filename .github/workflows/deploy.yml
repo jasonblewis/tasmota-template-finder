@@ -34,8 +34,13 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site
+          mkdir -p _site/assets
           cp index.html tasmota.db _site/
+          # Vendor the device images so the deployed site is self-contained and
+          # doesn't hotlink blakadder's bandwidth. (~156 MB; well under the Pages
+          # 1 GB limit.) Local dev skips this and hotlinks blakadder instead.
+          cp -r templates/assets/device_images _site/assets/device_images
+          cp -r templates/assets/images        _site/assets/images
 
       - uses: actions/upload-pages-artifact@v3
         with:
