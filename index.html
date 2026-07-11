@@ -262,17 +262,17 @@ function populateFacets() {
     document.getElementById("category").insertAdjacentHTML("beforeend",
       `<option value="${esc(r.name)}">${esc(cap(r.name))} (${r.n})</option>`);
   }
-  // Special synthetic option: power-monitoring plugs (a detected capability,
-  // not a real `type` value). Handled specially in search().
+  // Type options: real `type` values plus a synthetic "Power monitoring plugs"
+  // entry (a detected capability, handled specially in search()). Both are
+  // sorted together so the synthetic one sits in its normal alphabetical place.
+  const typeOpts = all(`SELECT type AS label, COUNT(*) n FROM device
+      WHERE type IS NOT NULL GROUP BY type`).map(r => ({ label: r.label, value: r.label, n: r.n }));
   const pmCount = all(`SELECT COUNT(*) n FROM device WHERE power_monitoring=1`)[0].n;
-  if (pmCount) {
+  if (pmCount) typeOpts.push({ label: "Power monitoring plugs", value: PM_PLUG, n: pmCount });
+  typeOpts.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+  for (const o of typeOpts) {
     document.getElementById("type").insertAdjacentHTML("beforeend",
-      `<option value="${PM_PLUG}">Power monitoring plugs (${pmCount})</option>`);
-  }
-  for (const r of all(`SELECT type, COUNT(*) n FROM device WHERE type IS NOT NULL
-      GROUP BY type ORDER BY type COLLATE NOCASE`)) {
-    document.getElementById("type").insertAdjacentHTML("beforeend",
-      `<option value="${esc(r.type)}">${esc(r.type)} (${r.n})</option>`);
+      `<option value="${esc(o.value)}">${esc(o.label)} (${o.n})</option>`);
   }
   for (const r of all(`SELECT b.name FROM brand b JOIN device d ON d.brand_id=b.id
       GROUP BY b.name HAVING COUNT(*) > 1 ORDER BY b.name COLLATE NOCASE`)) {
