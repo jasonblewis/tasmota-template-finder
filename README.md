@@ -240,3 +240,27 @@ datasette tasmota.db --setting facet_time_limit_ms 1000
 
 Deploy free on Fly.io/Render, or use **Datasette Lite** (WASM) for a static
 host. See `RESEARCH-blakadder-to-sql.md` §4 for the full comparison.
+
+## License
+
+This project has two layers with different licenses — keep them distinct if you
+fork or redistribute:
+
+- **The code** in this repo (`importer.py`, `index.html`, `devserver.py`, the
+  workflow, and docs) is licensed under the **GNU Affero General Public License
+  v3.0** — see [`LICENSE`](LICENSE). © the repo authors.
+- **The device template data** comes from
+  [`blakadder/templates`](https://github.com/blakadder/templates), which is
+  **Eclipse Public License 2.0** and community-submitted. That license governs
+  the data and the generated `tasmota.db`; the attribution and EPL notice must be
+  preserved on redistribution. AGPL on the code does **not** relicense the data.
+
+The bundled SQLite-in-the-browser engine, [sql.js](https://sql.js.org), is MIT
+(loaded from CDN, not vendored). All three licenses coexist fine here — the code
+only reads the data at runtime and doesn't link against any EPL-licensed code.
+
+> Note on AGPL: its §13 network-source clause targets server-side programs. This
+> site is fully static and runs in the visitor's browser, where the source is
+> already delivered to them — so AGPL applies cleanly but its network provision
+> has little practical effect for the hosted page. The importer is a normal
+> AGPL program.
