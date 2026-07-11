@@ -1,0 +1,4 @@
+# Only PyYAML is required (sqlite3 is in the Python stdlib).
+PyYAML>=6.0
+# Optional: if installed, the importer uses it for frontmatter parsing.
+# python-frontmatter>=1.0
