@@ -221,8 +221,16 @@ const CHIP_CLASS_SQL = `CASE
 if (window.DOMPurify) {
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
     if (node.tagName === "A" && node.getAttribute("href")) {
-      node.setAttribute("target", "_blank");
-      node.setAttribute("rel", "noopener nofollow");
+      const r = resolveNoteHref(node.getAttribute("href"));
+      node.setAttribute("href", r.href);
+      if (r.internal) {
+        // In-app deep link to a device we host: same tab, drives openDeviceBySlug.
+        node.removeAttribute("target");
+        node.removeAttribute("rel");
+      } else {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener nofollow");
+      }
     }
     if (node.tagName === "IMG") {
       const src = node.getAttribute("src") || "";
@@ -255,6 +263,24 @@ function fixImg(url) {
     return LOCAL_DEV ? IMG_BASE + url : url.replace(/^\//, "");
   }
   return url;   // absolute URLs (githubusercontent, manufacturer sites) unchanged
+}
+// Note links are authored for blakadder's Jekyll site, so relative hrefs like
+// `ESP-02S`, `gosund_WP5` or `unsupported/AWP08L-v3.html` resolve against OUR
+// origin and 404. Repoint them: if the target is a device we host, make it an
+// in-app deep link (#slug); otherwise resolve it absolutely against blakadder so
+// the original page still opens. Absolute URLs and pure #fragments pass through.
+function resolveNoteHref(raw) {
+  raw = raw.trim();
+  if (/^(https?:|mailto:|tel:|data:|#)/i.test(raw)) return { href: raw, internal: false };
+  // A device slug: the path's basename without a trailing .html (drops any
+  // query/fragment and directory such as `unsupported/`).
+  const path = raw.split(/[#?]/, 1)[0];
+  const slug = path.replace(/\.html$/i, "").replace(/^.*\//, "");
+  if (slug && typeof db !== "undefined" && db && path === raw &&
+      all("SELECT 1 FROM device WHERE slug=? LIMIT 1", [slug]).length) {
+    return { href: "#" + encodeURIComponent(slug), internal: true };
+  }
+  return { href: IMG_BASE + "/" + raw.replace(/^\//, ""), internal: false };
 }
 function esc(s) { return (s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 // Display helper: Title-case a lowercase category name ("diy" -> "DIY", "plug" -> "Plug").
